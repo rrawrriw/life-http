@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/rrawrriw/gin-static"
+	"github.com/rrawrriw/life-ctrl"
 )
 
 const (
@@ -21,7 +22,8 @@ type (
 		Host      string `envconfig:"host"`
 		Port      int    `envconfig:"port"`
 		PublicDir string `envconfig:"public_dir"`
-		Data      string `envconfig:"data"`
+		StagesDir string `envconfig:"stages_dir"`
+		PagesDir  string `envconfig:"pages_dir"`
 	}
 )
 
@@ -38,24 +40,45 @@ func main() {
 	srv := gin.Default()
 	srv.Use(ginstatic.Serve("/", ginstatic.LocalFile(htmlDir, false)))
 	srv.Static("/public", publicDir)
-	srv.GET("/data", specWrap(specs))
+	srv.GET("/data", specWrap(specs, readStages))
+	srv.GET("/page/:name", specWrap(specs, readMdFile))
 
 	srv.Run(srvRes)
 }
 
-func specWrap(specs Specs) gin.HandlerFunc {
+func readStages(c *gin.Context, specs Specs) {
+	j, err := lifectrl.NewStageJSON(specs.StagesDir)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"Err": err.Error()})
+		return
+	}
+
+	r := gin.H{}
+	err = json.Unmarshal(j, &r)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"Err": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, r)
+}
+
+func readMdFile(c *gin.Context, specs Specs) {
+	name := c.Params.ByName("name")
+	str, err := ioutil.ReadFile(path.Join(specs.PagesDir, name+".md"))
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"Err": err.Error()})
+		return
+	}
+
+	m := map[string]string{}
+	m[name] = string(str)
+
+	c.JSON(http.StatusOK, m)
+}
+
+func specWrap(specs Specs, h func(*gin.Context, Specs)) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		str, err := ioutil.ReadFile(specs.Data)
-		if err != nil {
-			c.JSON(http.StatusOK, gin.H{"Err": err.Error()})
-		}
-
-		r := gin.H{}
-		err = json.Unmarshal([]byte(str), &r)
-		if err != nil {
-			c.JSON(http.StatusOK, gin.H{"Err": err.Error()})
-		}
-
-		c.JSON(http.StatusOK, r)
+		h(c, specs)
 	}
 }
