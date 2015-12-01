@@ -24,6 +24,7 @@ type (
 		PublicDir string `envconfig:"public_dir"`
 		StagesDir string `envconfig:"stages_dir"`
 		PagesDir  string `envconfig:"pages_dir"`
+		ConfigDir string `envconfig:"config_dir"`
 	}
 )
 
@@ -35,11 +36,13 @@ func main() {
 	srvRes := host + ":" + strconv.Itoa(port)
 
 	publicDir := specs.PublicDir
+	configDir := specs.ConfigDir
 	htmlDir := path.Join(publicDir, "html")
 
 	srv := gin.Default()
 	srv.Use(ginstatic.Serve("/", ginstatic.LocalFile(htmlDir, false)))
 	srv.Static("/public", publicDir)
+	srv.Static("/config", configDir)
 	srv.GET("/data", specWrap(specs, readStages))
 	srv.GET("/page/:name", specWrap(specs, readMdFile))
 
